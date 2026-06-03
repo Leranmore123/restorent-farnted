@@ -38,12 +38,17 @@ export default function MonthlySalesScreen({ navigation }) {
   useFocusEffect(useCallback(() => { fetchAll(); }, []));
 
   const renderDayRow = ({ item, index }) => (
-    <View style={[styles.row, index % 2 === 0 && styles.rowAlt]}>
-      <Text style={styles.dayDate}>{new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</Text>
-      <Text style={styles.dayDay}>{new Date(item.date).toLocaleDateString('en-IN', { weekday: 'short' })}</Text>
+    <TouchableOpacity
+      style={[styles.row, index % 2 === 0 && styles.rowAlt]}
+      onPress={() => navigation.navigate('DailySales', { initialDate: item.date })}
+      activeOpacity={0.7}
+    >
+      <Text style={styles.dayDate}>{new Date(item.date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</Text>
+      <Text style={styles.dayDay}>{new Date(item.date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short' })}</Text>
       <Text style={styles.dayBills}>{item.bills} bills</Text>
       <Text style={styles.dayAmt}>₹{parseFloat(item.sales).toFixed(0)}</Text>
-    </View>
+      <Text style={{ color: '#BDBDBD', fontSize: 16 }}>›</Text>
+    </TouchableOpacity>
   );
 
   const renderItemRow = ({ item, index }) => (
@@ -69,7 +74,14 @@ export default function MonthlySalesScreen({ navigation }) {
           <Text style={styles.headerTitle}>Monthly Sales Report</Text>
           <Text style={styles.headerSub}>{data?.month || currentMonth}</Text>
         </View>
-        <View style={styles.backBtn} />
+        {/* Navigate to date-wise report */}
+        <TouchableOpacity
+          onPress={() => navigation.navigate('DailySales')}
+          style={styles.dateBtn}
+        >
+          <Text style={styles.dateBtnIcon}>📅</Text>
+          <Text style={styles.dateBtnText}>Date{'\n'}Report</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Tabs */}
@@ -184,6 +196,16 @@ const styles = StyleSheet.create({
   backText: { color: '#FFF', fontSize: 17, fontWeight: '500' },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFF', textAlign: 'center' },
   headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.75)', textAlign: 'center', marginTop: 2 },
+  dateBtn: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    width: 70,
+  },
+  dateBtnIcon: { fontSize: 18 },
+  dateBtnText: { color: '#FFF', fontSize: 9, fontWeight: '700', textAlign: 'center', marginTop: 2 },
 
   tabs: { flexDirection: 'row', backgroundColor: '#FFF', elevation: 2 },
   tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },

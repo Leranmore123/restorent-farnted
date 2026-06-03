@@ -149,10 +149,11 @@ const dpStyles = StyleSheet.create({
 });
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
-export default function DailySalesScreen({ navigation }) {
+export default function DailySalesScreen({ navigation, route }) {
   const today = new Date().toISOString().split('T')[0];
+  const { initialDate } = route.params || {};
 
-  const [selectedDate,  setSelectedDate]  = useState(today);
+  const [selectedDate,  setSelectedDate]  = useState(initialDate || today);
   const [data,          setData]          = useState(null);
   const [itemData,      setItemData]      = useState(null);
   const [loading,       setLoading]       = useState(true);
