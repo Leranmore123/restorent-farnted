@@ -12,6 +12,10 @@ import KOTScreen from '../screens/KOTScreen';
 import OrdersListScreen from '../screens/OrdersListScreen';
 import MenuManagementScreen from '../screens/MenuManagementScreen';
 import TodayReportScreen from '../screens/TodayReportScreen';
+import ItemSalesReportScreen from '../screens/ItemSalesReportScreen';
+import DailySalesScreen from '../screens/DailySalesScreen';
+import MonthlySalesScreen from '../screens/MonthlySalesScreen';
+import ProfitLossScreen from '../screens/ProfitLossScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import RestaurantInfoScreen from '../screens/settings/RestaurantInfoScreen';
 import CategoryManageScreen from '../screens/settings/CategoryManageScreen';
@@ -40,6 +44,10 @@ function DashboardStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="DashboardHome" component={DashboardScreen} />
       <Stack.Screen name="TodayReport" component={TodayReportScreen} />
+      <Stack.Screen name="ItemSalesReport" component={ItemSalesReportScreen} />
+      <Stack.Screen name="DailySales" component={DailySalesScreen} />
+      <Stack.Screen name="MonthlySales" component={MonthlySalesScreen} />
+      <Stack.Screen name="ProfitLoss" component={ProfitLossScreen} />
       <Stack.Screen name="Tables" component={TablesScreen} />
       <Stack.Screen name="SelectItems" component={SelectItemsScreen} />
       <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />

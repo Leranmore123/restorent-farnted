@@ -120,16 +120,39 @@ export default function SelectItemsScreen({ route, navigation }) {
       if (newQty <= 0) {
         delete updated[item.id];
       } else {
-        updated[item.id] = { item, quantity: newQty };
+        const existing = prev[item.id];
+        updated[item.id] = {
+          item,
+          quantity: newQty,
+          customPrice: existing?.customPrice,
+        };
       }
       return updated;
     });
   };
 
-  // ─── Totals ───────────────────────────────────────────────────────────────
+  // Feature 4: Per-item price change
+  const handlePriceChange = (item, newPrice) => {
+    setSelectedItems((prev) => {
+      const existing = prev[item.id];
+      const qty = existing?.quantity || 1;
+      return {
+        ...prev,
+        [item.id]: {
+          item,
+          quantity: qty,
+          customPrice: newPrice,
+        },
+      };
+    });
+  };
+
+  // ─── Totals (use customPrice if set) ──────────────────────────────────────
   const total = useMemo(() =>
     Object.values(selectedItems).reduce(
-      (sum, { item, quantity }) => sum + parseFloat(item.price || 0) * quantity, 0
+      (sum, { item, quantity, customPrice }) =>
+        sum + (customPrice != null ? customPrice : parseFloat(item.price || 0)) * quantity,
+      0
     ), [selectedItems]);
 
   const itemCount = useMemo(() =>
@@ -158,9 +181,11 @@ export default function SelectItemsScreen({ route, navigation }) {
     table:      tableId || null,
     order_type: isTakeAway ? 'TAKEAWAY' : 'DINE_IN',
     status:     statusOverride || 'PENDING',
-    items: Object.values(selectedItems).map(({ item, quantity }) => ({
+    items: Object.values(selectedItems).map(({ item, quantity, customPrice }) => ({
       menu_item: item.id,
       quantity,
+      // Feature 4: Send custom price if edited
+      ...(customPrice != null ? { price: customPrice } : {}),
     })),
   });
 
@@ -371,6 +396,7 @@ export default function SelectItemsScreen({ route, navigation }) {
               items={group.items || []}
               selectedItems={selectedItems}
               onQuantityChange={handleQuantityChange}
+              onPriceChange={handlePriceChange}
             />
           ))
         )}

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   StatusBar,
+  DeviceEventEmitter,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getDashboard, getOrders } from '../api/api';
@@ -65,7 +66,7 @@ function OrderRow({ order }) {
         <Text style={[styles.statusText, { color }]}>{label}</Text>
       </View>
       <Text style={styles.orderTotal}>
-        ₹{parseFloat(order.total_amount || 0).toFixed(2)}
+        ₹{parseFloat(order.order_total || order.total_amount || 0).toFixed(2)}
       </Text>
     </View>
   );
@@ -115,6 +116,14 @@ export default function DashboardScreen({ navigation }) {
       fetchData();
     }, [])
   );
+
+  // Refresh when a bill is deleted from any screen
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('BILL_DELETED', () => {
+      fetchData();
+    });
+    return () => sub.remove();
+  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);

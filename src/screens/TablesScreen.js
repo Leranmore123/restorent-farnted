@@ -55,14 +55,21 @@ export default function TablesScreen({ navigation }) {
     });
   };
 
-  const handleTakeAway = () => {
+  const handleTakeAway = (slot = 1) => {
     navigation.navigate('SelectItems', {
       tableId: null,
-      tableName: 'Take Away',
+      tableName: `Take Away ${slot}`,
       orderId: null,
       isTakeAway: true,
     });
   };
+
+  // Feature 7: 3 take away slots
+  const TAKEAWAY_SLOTS = [
+    { slot: 1, label: 'Take Away 1', icon: '🛍' },
+    { slot: 2, label: 'Take Away 2', icon: '📦' },
+    { slot: 3, label: 'Take Away 3', icon: '🥡' },
+  ];
 
   const renderItem = ({ item }) => (
     <View style={styles.cardWrapper}>
@@ -87,19 +94,24 @@ export default function TablesScreen({ navigation }) {
         <Text style={styles.headerSubtitle}>{tables.length} tables</Text>
       </View>
 
-      {/* Take Away Button */}
-      <TouchableOpacity
-        style={styles.takeAwayButton}
-        onPress={handleTakeAway}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.takeAwayIcon}>🛍</Text>
-        <View>
-          <Text style={styles.takeAwayTitle}>Take Away / Parcel</Text>
-          <Text style={styles.takeAwaySubtitle}>No table required</Text>
+      {/* Feature 7: 3 Take Away Buttons */}
+      <View style={styles.takeAwaySection}>
+        <Text style={styles.takeAwayHeader}>TAKE AWAY / PARCEL</Text>
+        <View style={styles.takeAwayRow}>
+          {TAKEAWAY_SLOTS.map(({ slot, label, icon }) => (
+            <TouchableOpacity
+              key={slot}
+              style={styles.takeAwayButton}
+              onPress={() => handleTakeAway(slot)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.takeAwayIcon}>{icon}</Text>
+              <Text style={styles.takeAwayTitle}>{label}</Text>
+              <Text style={styles.takeAwaySubtitle}>No table</Text>
+            </TouchableOpacity>
+          ))}
         </View>
-        <Text style={styles.takeAwayArrow}>›</Text>
-      </TouchableOpacity>
+      </View>
 
       {/* Tables Grid */}
       {tables.length === 0 ? (
@@ -165,13 +177,11 @@ const styles = StyleSheet.create({
     color: '#BBDEFB',
     fontSize: 13,
   },
-  takeAwayButton: {
+  takeAwaySection: {
     backgroundColor: '#FFFFFF',
     margin: 12,
     borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    padding: 12,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -180,24 +190,40 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: PRIMARY,
   },
+  takeAwayHeader: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9E9E9E',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  takeAwayRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  takeAwayButton: {
+    flex: 1,
+    backgroundColor: '#F5F7FA',
+    borderRadius: 10,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E3F2FD',
+  },
   takeAwayIcon: {
-    fontSize: 28,
-    marginRight: 14,
+    fontSize: 22,
+    marginBottom: 4,
   },
   takeAwayTitle: {
-    fontSize: 15,
+    fontSize: 11,
     fontWeight: '700',
     color: '#212121',
+    textAlign: 'center',
   },
   takeAwaySubtitle: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#9E9E9E',
     marginTop: 2,
-  },
-  takeAwayArrow: {
-    marginLeft: 'auto',
-    fontSize: 24,
-    color: '#BDBDBD',
   },
   grid: {
     padding: 6,

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,52 +8,65 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  DeviceEventEmitter,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getOrders } from '../api/api';
 
 const PRIMARY = '#1565C0';
 
+// Feature 1 & 2: Added 'billed' (Pending Bill) filter prominently + show paid bills first
 const FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 'pending', label: 'Pending' },
-  { key: 'kot_generated', label: 'KOT' },
-  { key: 'billed', label: 'Billed' },
-  { key: 'paid', label: 'Paid' },
+  { key: 'all',           label: 'All' },
+  { key: 'pending',       label: '🕐 Pending' },
+  { key: 'hold',          label: '⏸ Hold' },
+  { key: 'kot_generated', label: '🍳 KOT' },
+  { key: 'billed',        label: '🧾 Unpaid Bill' },
+  { key: 'paid',          label: '✅ Paid' },
 ];
 
 const STATUS_CONFIG = {
-  pending: { color: '#FF8F00', bg: '#FFF8E1', label: 'Pending' },
-  kot_generated: { color: '#1565C0', bg: '#E3F2FD', label: 'KOT' },
-  billed: { color: '#6A1B9A', bg: '#F3E5F5', label: 'Billed' },
-  paid: { color: '#2E7D32', bg: '#E8F5E9', label: 'Paid' },
-  cancelled: { color: '#C62828', bg: '#FFEBEE', label: 'Cancelled' },
+  pending:       { color: '#FF8F00', bg: '#FFF8E1',  label: 'Pending'     },
+  hold:          { color: '#F57C00', bg: '#FFF3E0',  label: 'On Hold'     },
+  kot_generated: { color: '#1565C0', bg: '#E3F2FD',  label: 'KOT'         },
+  billed:        { color: '#6A1B9A', bg: '#F3E5F5',  label: '🧾 Unpaid'   },
+  paid:          { color: '#2E7D32', bg: '#E8F5E9',  label: '✅ Paid'      },
+  cancelled:     { color: '#C62828', bg: '#FFEBEE',  label: 'Cancelled'   },
 };
 
 function OrderCard({ order, onPress }) {
-  const status = STATUS_CONFIG[order.status] || {
+  const status = STATUS_CONFIG[order.status?.toLowerCase()] || {
     color: '#757575',
     bg: '#F5F5F5',
     label: order.status || 'Unknown',
   };
 
   const tableName = order.table_name || order.table?.name || 'Take Away';
-  const total = parseFloat(order.total_amount || 0).toFixed(2);
-  const timeStr = order.created_at
-    ? new Date(order.created_at).toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+  const total     = parseFloat(order.order_total || order.total_amount || 0).toFixed(2);
+  const timeStr   = order.created_at
+    ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : '';
-  const dateStr = order.created_at
-    ? new Date(order.created_at).toLocaleDateString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-      })
+  const dateStr   = order.created_at
+    ? new Date(order.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })
     : '';
 
+  const isPaid    = order.status?.toLowerCase() === 'paid';
+  const isUnpaid  = order.status?.toLowerCase() === 'billed';
+
   return (
-    <TouchableOpacity style={styles.orderCard} onPress={onPress} activeOpacity={0.8}>
+    <TouchableOpacity
+      style={[
+        styles.orderCard,
+        isUnpaid && styles.orderCardUnpaid,
+        isPaid   && styles.orderCardPaid,
+      ]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      {/* Feature 2: Paid orders show green top border */}
+      {isPaid && <View style={styles.paidStripe} />}
+      {isUnpaid && <View style={styles.unpaidStripe} />}
+
       <View style={styles.orderCardLeft}>
         <View style={styles.orderIdRow}>
           <Text style={styles.orderId}>#{order.id}</Text>
@@ -64,12 +77,17 @@ function OrderCard({ order, onPress }) {
           </View>
         </View>
         <Text style={styles.orderTable}>{tableName}</Text>
-        <Text style={styles.orderTime}>
-          {dateStr} {timeStr}
-        </Text>
+        <Text style={styles.orderTime}>{dateStr}  {timeStr}</Text>
+
+        {/* Feature 2: Show items count for paid orders */}
+        {order.items_count != null && (
+          <Text style={styles.itemsCount}>{order.items_count} items</Text>
+        )}
       </View>
       <View style={styles.orderCardRight}>
-        <Text style={styles.orderTotal}>₹{total}</Text>
+        <Text style={[styles.orderTotal, isPaid && { color: '#2E7D32' }]}>
+          ₹{total}
+        </Text>
         <Text style={styles.orderArrow}>›</Text>
       </View>
     </TouchableOpacity>
@@ -77,20 +95,41 @@ function OrderCard({ order, onPress }) {
 }
 
 export default function OrdersListScreen({ navigation }) {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [orders,       setOrders]       = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [refreshing,   setRefreshing]   = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
+
+  // Feature 1: Summary counts
+  const [counts, setCounts] = useState({ pending: 0, billed: 0, paid: 0 });
 
   const fetchOrders = async (filter = activeFilter) => {
     try {
-      const params = {};
+      const params = { ordering: '-created_at' };
       if (filter !== 'all') params.status = filter;
-      params.ordering = '-created_at';
 
-      const res = await getOrders(params);
+      const [res, pendingRes, billedRes, paidRes] = await Promise.all([
+        getOrders(params),
+        getOrders({ status: 'pending' }),
+        getOrders({ status: 'billed' }),
+        getOrders({ status: 'paid' }),
+      ]);
+
       const data = Array.isArray(res.data) ? res.data : res.data?.results || [];
       setOrders(data);
+
+      // Feature 1: Count for summary badges
+      const pendingCount = Array.isArray(pendingRes.data)
+        ? pendingRes.data.length
+        : pendingRes.data?.count || pendingRes.data?.results?.length || 0;
+      const billedCount = Array.isArray(billedRes.data)
+        ? billedRes.data.length
+        : billedRes.data?.count || billedRes.data?.results?.length || 0;
+      const paidCount = Array.isArray(paidRes.data)
+        ? paidRes.data.length
+        : paidRes.data?.count || paidRes.data?.results?.length || 0;
+
+      setCounts({ pending: pendingCount, billed: billedCount, paid: paidCount });
     } catch (err) {
       Alert.alert('Error', err.message || 'Failed to load orders');
     } finally {
@@ -105,6 +144,13 @@ export default function OrdersListScreen({ navigation }) {
       fetchOrders(activeFilter);
     }, [activeFilter])
   );
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('BILL_DELETED', () => {
+      fetchOrders(activeFilter);
+    });
+    return () => sub.remove();
+  }, [activeFilter]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -133,24 +179,55 @@ export default function OrdersListScreen({ navigation }) {
         <Text style={styles.headerSubtitle}>{orders.length} orders</Text>
       </View>
 
+      {/* Feature 1: Summary bar - Pending Bills highlight */}
+      <View style={styles.summaryBar}>
+        <TouchableOpacity
+          style={[styles.summaryItem, { backgroundColor: '#FFF8E1' }]}
+          onPress={() => handleFilterChange('pending')}
+        >
+          <Text style={[styles.summaryCount, { color: '#FF8F00' }]}>{counts.pending}</Text>
+          <Text style={[styles.summaryLabel, { color: '#FF8F00' }]}>Pending</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.summaryItem, { backgroundColor: '#F3E5F5', borderWidth: counts.billed > 0 ? 2 : 0, borderColor: '#6A1B9A' }]}
+          onPress={() => handleFilterChange('billed')}
+        >
+          <Text style={[styles.summaryCount, { color: '#6A1B9A' }]}>{counts.billed}</Text>
+          <Text style={[styles.summaryLabel, { color: '#6A1B9A' }]}>🧾 Unpaid Bills</Text>
+          {counts.billed > 0 && (
+            <View style={styles.urgentDot} />
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.summaryItem, { backgroundColor: '#E8F5E9' }]}
+          onPress={() => handleFilterChange('paid')}
+        >
+          <Text style={[styles.summaryCount, { color: '#2E7D32' }]}>{counts.paid}</Text>
+          <Text style={[styles.summaryLabel, { color: '#2E7D32' }]}>✅ Paid</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Filter Tabs */}
-      <View style={styles.filterRow}>
-        {FILTERS.map((f) => (
-          <TouchableOpacity
-            key={f.key}
-            style={[styles.filterTab, activeFilter === f.key && styles.filterTabActive]}
-            onPress={() => handleFilterChange(f.key)}
-          >
-            <Text
-              style={[
-                styles.filterTabText,
-                activeFilter === f.key && styles.filterTabTextActive,
-              ]}
+      <View style={styles.filterContainer}>
+        <FlatList
+          data={FILTERS}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item.key}
+          contentContainerStyle={styles.filterRow}
+          renderItem={({ item: f }) => (
+            <TouchableOpacity
+              style={[styles.filterTab, activeFilter === f.key && styles.filterTabActive]}
+              onPress={() => handleFilterChange(f.key)}
             >
-              {f.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Text style={[styles.filterTabText, activeFilter === f.key && styles.filterTabTextActive]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
       </View>
 
       {/* Orders List */}
@@ -180,7 +257,7 @@ export default function OrdersListScreen({ navigation }) {
               <Text style={styles.emptySubtitle}>
                 {activeFilter === 'all'
                   ? 'No orders have been placed yet'
-                  : `No ${activeFilter} orders`}
+                  : `No ${FILTERS.find(f => f.key === activeFilter)?.label || activeFilter} orders`}
               </Text>
             </View>
           }
@@ -191,9 +268,10 @@ export default function OrdersListScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F7FA' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  container:   { flex: 1, backgroundColor: '#F5F7FA' },
+  centered:    { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingText: { marginTop: 12, color: '#757575', fontSize: 14 },
+
   header: {
     backgroundColor: PRIMARY,
     paddingTop: 48,
@@ -203,41 +281,70 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  headerTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '700' },
+  headerTitle:    { color: '#FFFFFF', fontSize: 20, fontWeight: '700' },
   headerSubtitle: { color: '#BBDEFB', fontSize: 13 },
-  filterRow: {
+
+  // Feature 1: Summary bar
+  summaryBar: {
     flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    gap: 8,
+  },
+  summaryItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 10,
+    position: 'relative',
+  },
+  summaryCount: {
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  summaryLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  urgentDot: {
+    position: 'absolute',
+    top: 6,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#C62828',
+  },
+
+  filterContainer: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+  },
+  filterRow: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 6,
   },
   filterTab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    marginRight: 6,
   },
-  filterTabActive: {
-    borderBottomColor: PRIMARY,
-  },
-  filterTabText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#9E9E9E',
-  },
-  filterTabTextActive: {
-    color: PRIMARY,
-  },
-  listContent: {
-    padding: 12,
-    paddingBottom: 24,
-  },
+  filterTabActive:     { backgroundColor: PRIMARY, borderColor: PRIMARY },
+  filterTabText:       { fontSize: 12, fontWeight: '600', color: '#9E9E9E' },
+  filterTabTextActive: { color: '#FFF' },
+
+  listContent: { padding: 12, paddingBottom: 24 },
+
   orderCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
@@ -250,8 +357,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
+    overflow: 'hidden',
   },
-  orderCardLeft: { flex: 1 },
+  // Feature 2: Color coding for billed/paid
+  orderCardUnpaid: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#6A1B9A',
+  },
+  orderCardPaid: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#2E7D32',
+  },
+  paidStripe:   { display: 'none' },
+  unpaidStripe: { display: 'none' },
+
+  orderCardLeft:  { flex: 1 },
   orderIdRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -268,19 +388,11 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 10,
   },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  orderTable: {
-    fontSize: 13,
-    color: '#424242',
-    marginBottom: 2,
-  },
-  orderTime: {
-    fontSize: 11,
-    color: '#9E9E9E',
-  },
+  statusText: { fontSize: 11, fontWeight: '700' },
+  orderTable: { fontSize: 13, color: '#424242', marginBottom: 2 },
+  orderTime:  { fontSize: 11, color: '#9E9E9E' },
+  itemsCount: { fontSize: 11, color: '#9E9E9E', marginTop: 2 },
+
   orderCardRight: {
     alignItems: 'flex-end',
     flexDirection: 'row',
@@ -291,16 +403,14 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     marginRight: 6,
   },
-  orderArrow: {
-    fontSize: 22,
-    color: '#BDBDBD',
-  },
+  orderArrow: { fontSize: 22, color: '#BDBDBD' },
+
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     padding: 60,
   },
-  emptyIcon: { fontSize: 56, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#424242', marginBottom: 8 },
+  emptyIcon:     { fontSize: 56, marginBottom: 16 },
+  emptyTitle:    { fontSize: 18, fontWeight: '700', color: '#424242', marginBottom: 8 },
   emptySubtitle: { fontSize: 14, color: '#9E9E9E', textAlign: 'center' },
 });

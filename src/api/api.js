@@ -3,7 +3,7 @@ import axios from 'axios';
 // TODO: Change this to your server's IP address and port
 // Example: 'http://192.168.1.100:8000/api'
 // Find your IP with: ipconfig (Windows) or ifconfig (Mac/Linux)
-const BASE_URL = 'http://192.168.1.9:8000/api';
+const BASE_URL = 'https://restorent.pythonanywhere.com/api';
 
 const apiClient = axios.create({
   baseURL: BASE_URL,
@@ -117,6 +117,14 @@ export const createCategory = (data) => apiClient.post('/categories/', data);
 export const patchMenuItem = (id, data) => apiClient.patch(`/menu-items/${id}/`, data);
 export const deleteTable = (id) => apiClient.delete(`/tables/${id}/`);
 export const clearAllData = () => apiClient.post('/clear-data/');
+
+// ─── Reports ──────────────────────────────────────────────────────────────────
+
+export const getDailyReport      = (date)  => apiClient.get('/reports/daily/',       { params: date  ? { date }  : {} });
+export const getMonthlyReport    = (month) => apiClient.get('/reports/monthly/',     { params: month ? { month } : {} });
+export const getItemSalesReport  = (params = {}) => apiClient.get('/reports/item-sales/', { params });
+export const getProfitLossReport = (params = {}) => apiClient.get('/reports/profit-loss/', { params });
+export const deleteBill          = (id)    => apiClient.delete(`/bills/${id}/`);
 
 export default apiClient;
 

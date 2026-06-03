@@ -2,9 +2,10 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, RefreshControl, ActivityIndicator, Alert,
+  DeviceEventEmitter,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getTodayReport } from '../api/api';
+import { getTodayReport, deleteBill } from '../api/api';
 
 const PRIMARY = '#1565C0';
 const GREEN   = '#2E7D32';
@@ -32,6 +33,32 @@ export default function TodayReportScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  const handleDeleteBill = (bill) => {
+    Alert.alert(
+      'Delete Bill',
+      `Delete ${bill.bill_number}?\nOrder will be reset to pending and can be re-billed.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteBill(bill.id);
+              // Broadcast to all screens
+              DeviceEventEmitter.emit('BILL_DELETED');
+              // Refresh this screen
+              setLoading(true);
+              fetchReport();
+            } catch (err) {
+              Alert.alert('Error', err.message || 'Failed to delete bill');
+            }
+          },
+        },
+      ]
+    );
   };
 
   useFocusEffect(useCallback(() => {
@@ -100,6 +127,40 @@ export default function TodayReportScreen({ navigation }) {
           </View>
         </View>
 
+        {/* ── Item Sales Report Button ── */}
+        <TouchableOpacity
+          style={styles.itemReportBtn}
+          onPress={() => navigation.navigate('ItemSalesReport')}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.itemReportIcon}>📦</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.itemReportTitle}>Item-wise Sales Report</Text>
+            <Text style={styles.itemReportSub}>See which items sold most today</Text>
+          </View>
+          <Text style={styles.itemReportArrow}>›</Text>
+        </TouchableOpacity>
+
+        {/* ── Monthly & P&L Buttons ── */}
+        <View style={styles.reportBtnRow}>
+          <TouchableOpacity
+            style={[styles.reportBtn, { backgroundColor: '#E8F5E9' }]}
+            onPress={() => navigation.navigate('MonthlySales')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.reportBtnIcon}>📅</Text>
+            <Text style={[styles.reportBtnTitle, { color: '#2E7D32' }]}>Monthly Report</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.reportBtn, { backgroundColor: '#FFF3E0' }]}
+            onPress={() => navigation.navigate('ProfitLoss')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.reportBtnIcon}>📈</Text>
+            <Text style={[styles.reportBtnTitle, { color: '#E65100' }]}>Profit & Loss</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* ── Payment Mode Breakdown ── */}
         <Text style={styles.sectionTitle}>PAYMENT MODE BREAKDOWN</Text>
         {breakdown.length === 0 ? (
@@ -146,6 +207,7 @@ export default function TodayReportScreen({ navigation }) {
               <Text style={[styles.billCol, styles.billColItems, styles.billHeaderText]}>ITEMS</Text>
               <Text style={[styles.billCol, styles.billColMode,  styles.billHeaderText]}>MODE</Text>
               <Text style={[styles.billCol, styles.billColAmt,   styles.billHeaderText]}>AMOUNT</Text>
+              <View style={{ width: 32 }} />
             </View>
 
             {bills.map((bill, idx) => {
@@ -160,29 +222,40 @@ export default function TodayReportScreen({ navigation }) {
                 : '';
 
               return (
-                <TouchableOpacity
+                <View
                   key={bill.id}
                   style={[styles.billRow, idx % 2 === 0 && styles.billRowEven]}
-                  onPress={() => navigation.navigate('Bill', { billData: bill })}
-                  activeOpacity={0.7}
                 >
-                  <View style={[styles.billCol, styles.billColBill]}>
-                    <Text style={styles.billNumber}>{bill.bill_number}</Text>
-                    <Text style={styles.billTime}>{time}</Text>
-                  </View>
-                  <Text style={[styles.billCol, styles.billColTable, styles.billText]} numberOfLines={1}>
-                    {tableName}
-                  </Text>
-                  <Text style={[styles.billCol, styles.billColItems, styles.billText]}>
-                    {itemCount}
-                  </Text>
-                  <Text style={[styles.billCol, styles.billColMode, { color: cfg.color, fontWeight: '700', fontSize: 11 }]}>
-                    {bill.payment_mode}
-                  </Text>
-                  <Text style={[styles.billCol, styles.billColAmt, styles.billAmount]}>
-                    ₹{amount.toFixed(0)}
-                  </Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                    onPress={() => navigation.navigate('Bill', { billData: bill })}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.billCol, styles.billColBill]}>
+                      <Text style={styles.billNumber}>{bill.bill_number}</Text>
+                      <Text style={styles.billTime}>{time}</Text>
+                    </View>
+                    <Text style={[styles.billCol, styles.billColTable, styles.billText]} numberOfLines={1}>
+                      {tableName}
+                    </Text>
+                    <Text style={[styles.billCol, styles.billColItems, styles.billText]}>
+                      {itemCount}
+                    </Text>
+                    <Text style={[styles.billCol, styles.billColMode, { color: cfg.color, fontWeight: '700', fontSize: 11 }]}>
+                      {bill.payment_mode}
+                    </Text>
+                    <Text style={[styles.billCol, styles.billColAmt, styles.billAmount]}>
+                      ₹{amount.toFixed(0)}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.billDeleteBtn}
+                    onPress={() => handleDeleteBill(bill)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.billDeleteIcon}>🗑</Text>
+                  </TouchableOpacity>
+                </View>
               );
             })}
 
@@ -291,4 +364,30 @@ const styles = StyleSheet.create({
   },
   billTotalLabel:  { fontSize: 13, fontWeight: '700', color: '#212121' },
   billTotalAmount: { fontSize: 18, fontWeight: '700', color: PRIMARY },
+
+  billDeleteBtn: {
+    width: 32, alignItems: 'center', justifyContent: 'center', paddingVertical: 4,
+  },
+  billDeleteIcon: { fontSize: 15 },
+
+  // Item Report Button
+  itemReportBtn: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#E8F0FE', borderRadius: 12,
+    padding: 16, marginBottom: 20,
+    borderWidth: 1, borderColor: '#C5D8FB',
+    elevation: 1,
+  },
+  itemReportIcon:  { fontSize: 28, marginRight: 14 },
+  itemReportTitle: { fontSize: 15, fontWeight: '700', color: PRIMARY },
+  itemReportSub:   { fontSize: 12, color: '#5C85D6', marginTop: 2 },
+  itemReportArrow: { fontSize: 26, color: PRIMARY, fontWeight: '300' },
+
+  reportBtnRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+  reportBtn: {
+    flex: 1, borderRadius: 12, padding: 16, alignItems: 'center',
+    elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 2,
+  },
+  reportBtnIcon:  { fontSize: 28, marginBottom: 6 },
+  reportBtnTitle: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
 });
