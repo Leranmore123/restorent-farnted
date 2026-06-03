@@ -193,6 +193,50 @@ export default function DashboardScreen({ navigation }) {
           />
         </View>
 
+        {/* Reports Quick Access */}
+        <Text style={styles.sectionTitle}>REPORTS</Text>
+        <View style={styles.reportsGrid}>
+          <TouchableOpacity
+            style={styles.reportCard}
+            onPress={() => navigation.navigate('TodayReport')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.reportCardIcon}>📊</Text>
+            <Text style={styles.reportCardTitle}>Today's Report</Text>
+            <Text style={styles.reportCardSub}>Bills & sales</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.reportCard, { borderLeftColor: '#E65100' }]}
+            onPress={() => navigation.navigate('DailySales')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.reportCardIcon}>📅</Text>
+            <Text style={styles.reportCardTitle}>Date wise Sale</Text>
+            <Text style={styles.reportCardSub}>Any date report</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.reportCard, { borderLeftColor: '#2E7D32' }]}
+            onPress={() => navigation.navigate('ItemSalesReport')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.reportCardIcon}>📦</Text>
+            <Text style={styles.reportCardTitle}>Item Sales</Text>
+            <Text style={styles.reportCardSub}>Item wise qty</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.reportCard, { borderLeftColor: '#6A1B9A' }]}
+            onPress={() => navigation.navigate('MonthlySales')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.reportCardIcon}>📈</Text>
+            <Text style={styles.reportCardTitle}>Monthly Sales</Text>
+            <Text style={styles.reportCardSub}>Month summary</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Recent Orders */}
         <Text style={styles.sectionTitle}>RECENT ORDERS</Text>
         <View style={styles.card}>
@@ -307,6 +351,30 @@ const styles = StyleSheet.create({
     marginHorizontal: -6,
     marginBottom: 20,
   },
+  reportsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -6,
+    marginBottom: 20,
+  },
+  reportCard: {
+    width: '50%',
+    paddingHorizontal: 6,
+    marginBottom: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 14,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    borderLeftWidth: 4,
+    borderLeftColor: PRIMARY,
+  },
+  reportCardIcon:  { fontSize: 22, marginBottom: 6 },
+  reportCardTitle: { fontSize: 13, fontWeight: '700', color: '#212121' },
+  reportCardSub:   { fontSize: 11, color: '#9E9E9E', marginTop: 2 },
   statCard: {
     width: '50%',
     paddingHorizontal: 6,
