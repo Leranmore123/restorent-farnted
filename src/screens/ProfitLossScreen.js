@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: {
     backgroundColor: PRIMARY, flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 8, paddingVertical: 14, elevation: 4,
+    paddingHorizontal: 8, paddingTop: 48, paddingBottom: 14, elevation: 4,
   },
   backBtn: { width: 70, paddingHorizontal: 8 },
   backText: { color: '#FFF', fontSize: 17, fontWeight: '500' },

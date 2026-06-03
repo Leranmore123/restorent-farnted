@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
 
   header: {
     backgroundColor: PRIMARY, flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 8, paddingVertical: 14, elevation: 4,
+    paddingHorizontal: 8, paddingVertical: 14, paddingTop: 48, elevation: 4,
   },
   backBtn:  { width: 70, paddingHorizontal: 8 },
   backText: { color: '#FFF', fontSize: 17, fontWeight: '500' },

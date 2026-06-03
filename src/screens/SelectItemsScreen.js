@@ -257,7 +257,7 @@ export default function SelectItemsScreen({ route, navigation }) {
     }
   };
 
-  // ─── SAVE → Bill ──────────────────────────────────────────────────────────
+  // ─── SAVE → Bill (Auto Paid) ─────────────────────────────────────────────
   const handleSave = async () => {
     if (itemCount === 0) {
       Alert.alert('No Items', 'Please add at least one item.');
@@ -269,8 +269,11 @@ export default function SelectItemsScreen({ route, navigation }) {
       const savedId = await saveOrder('BILLED');
       if (!savedId) return;
 
-      // 2. Generate bill
-      const billRes = await generateBill(savedId, { payment_mode: paymentMode });
+      // 2. Generate bill - amount_received = total etle auto PAID thay
+      const billRes = await generateBill(savedId, {
+        payment_mode: paymentMode,
+        amount_received: total,  // ← aa line thi auto paid
+      });
 
       // 3. Go to bill screen
       navigation.navigate('Bill', { billData: billRes.data, orderId: savedId });

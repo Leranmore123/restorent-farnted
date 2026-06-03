@@ -8,8 +8,9 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  DeviceEventEmitter,
 } from 'react-native';
-import { getOrder, updateOrder, generateKOT, generateBill } from '../api/api';
+import { getOrder, updateOrder, generateKOT, generateBill, updateBill, getBill } from '../api/api';
 
 const PRIMARY = '#1565C0';
 
@@ -29,6 +30,7 @@ export default function OrderDetailsScreen({ route, navigation }) {
   const [discount, setDiscount] = useState('0');
   const [taxPercent, setTaxPercent] = useState('0');
   const [paymentMode, setPaymentMode] = useState('CASH');
+  const [bill, setBill] = useState(null);
 
   useEffect(() => {
     if (orderId) {
@@ -46,6 +48,19 @@ export default function OrderDetailsScreen({ route, navigation }) {
       setDiscount(String(data.discount || '0'));
       setTaxPercent(String(data.tax_percent || '0'));
       setPaymentMode(data.payment_mode || 'CASH');
+
+      // If order is BILLED, also load bill details
+      if (data.status === 'BILLED' || data.status === 'PAID') {
+        try {
+          // bill id from order if available
+          const billId = data.bill_id || data.bill?.id;
+          if (billId) {
+            const billRes = await getBill(billId);
+            setBill(billRes.data);
+            setPaymentMode(billRes.data.payment_mode || 'CASH');
+          }
+        } catch (e) { /* bill may not have id in order */ }
+      }
     } catch (err) {
       Alert.alert('Error', err.message || 'Failed to load order');
     } finally {
@@ -103,13 +118,72 @@ export default function OrderDetailsScreen({ route, navigation }) {
         tax_percent: parseFloat(taxPercent),
         payment_mode: paymentMode,
       });
-      const billRes = await generateBill(orderId, { payment_mode: paymentMode });
+      // amount_received = grandTotal etle auto PAID
+      const billRes = await generateBill(orderId, {
+        payment_mode: paymentMode,
+        amount_received: grandTotal,
+      });
+      setBill(billRes.data);
       navigation.navigate('Bill', { billData: billRes.data, orderId });
     } catch (err) {
       Alert.alert('Error', err.message || 'Failed to generate bill');
     } finally {
       setSaving(false);
     }
+  };
+
+  // ── Mark as Paid ──────────────────────────────────────────────────────────
+  const handleMarkPaid = async () => {
+    Alert.alert(
+      '✅ Mark as Paid',
+      `Payment: ${paymentMode}\nTotal: ₹${grandTotal.toFixed(2)}\n\nPayment received confirm karo?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: '✅ Confirm Paid',
+          onPress: async () => {
+            setSaving(true);
+            try {
+              let billData = bill;
+
+              // Jau bill already loaded nathi to generateBill call karo
+              // (backend existing bill hoy to update kare che)
+              if (!billData) {
+                const billRes = await generateBill(orderId, {
+                  payment_mode: paymentMode,
+                  amount_received: grandTotal,
+                });
+                billData = billRes.data;
+              }
+
+              // Bill update karo - is_paid = true, amount_received = total
+              const updatedBillRes = await updateBill(billData.id, {
+                payment_mode: paymentMode,
+                is_paid: true,
+                amount_received: grandTotal,
+                total_amount: grandTotal,
+              });
+
+              DeviceEventEmitter.emit('ORDER_PAID');
+              DeviceEventEmitter.emit('BILL_DELETED'); // refresh orders list
+
+              Alert.alert(
+                '✅ Payment Complete!',
+                `₹${grandTotal.toFixed(2)} received via ${paymentMode}`,
+                [
+                  { text: 'View Bill', onPress: () => navigation.navigate('Bill', { billData: updatedBillRes.data, orderId }) },
+                  { text: 'Done', onPress: () => navigation.goBack() },
+                ]
+              );
+            } catch (err) {
+              Alert.alert('Error', err.message || 'Failed to mark as paid');
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -269,28 +343,63 @@ export default function OrderDetailsScreen({ route, navigation }) {
 
       {/* Action Buttons */}
       <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.kotBtn]}
-          onPress={handleGenerateKOT}
-          disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.actionBtnText}>GENERATE KOT</Text>
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.billBtn]}
-          onPress={handleGenerateBill}
-          disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.actionBtnText}>GENERATE BILL</Text>
-          )}
-        </TouchableOpacity>
+        {order.status === 'BILLED' ? (
+          // Order already billed - show Mark as Paid + View Bill
+          <>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.viewBillBtn]}
+              onPress={() => bill
+                ? navigation.navigate('Bill', { billData: bill, orderId })
+                : handleGenerateBill()
+              }
+              disabled={saving}
+            >
+              <Text style={styles.actionBtnText}>🧾 VIEW BILL</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.paidBtn]}
+              onPress={handleMarkPaid}
+              disabled={saving}
+            >
+              {saving
+                ? <ActivityIndicator size="small" color="#FFFFFF" />
+                : <Text style={styles.actionBtnText}>✅ MARK PAID</Text>
+              }
+            </TouchableOpacity>
+          </>
+        ) : order.status === 'PAID' ? (
+          // Already paid
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.paidDoneBtn]}
+            onPress={() => bill && navigation.navigate('Bill', { billData: bill, orderId })}
+          >
+            <Text style={styles.actionBtnText}>✅ PAID — VIEW BILL</Text>
+          </TouchableOpacity>
+        ) : (
+          // Pending / KOT - show KOT + Generate Bill
+          <>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.kotBtn]}
+              onPress={handleGenerateKOT}
+              disabled={saving}
+            >
+              {saving
+                ? <ActivityIndicator size="small" color="#FFFFFF" />
+                : <Text style={styles.actionBtnText}>GENERATE KOT</Text>
+              }
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.billBtn]}
+              onPress={handleGenerateBill}
+              disabled={saving}
+            >
+              {saving
+                ? <ActivityIndicator size="small" color="#FFFFFF" />
+                : <Text style={styles.actionBtnText}>GENERATE BILL</Text>
+              }
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </View>
   );
@@ -451,5 +560,8 @@ const styles = StyleSheet.create({
   },
   kotBtn: { backgroundColor: '#E65100' },
   billBtn: { backgroundColor: PRIMARY },
+  paidBtn: { backgroundColor: '#2E7D32' },
+  viewBillBtn: { backgroundColor: '#6A1B9A' },
+  paidDoneBtn: { backgroundColor: '#2E7D32', flex: 1 },
   actionBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700', letterSpacing: 0.5 },
 });
