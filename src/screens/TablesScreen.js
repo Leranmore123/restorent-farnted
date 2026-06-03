@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  DeviceEventEmitter,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getTables } from '../api/api';
@@ -39,6 +40,14 @@ export default function TablesScreen({ navigation }) {
       fetchTables();
     }, [])
   );
+
+  // Refresh tables when a bill is deleted so table shows as free
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('BILL_DELETED', () => {
+      fetchTables();
+    });
+    return () => sub.remove();
+  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
